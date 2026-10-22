@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Balanced brackets: stack visualization</title>
+<style>
+:root{
+  --bg:#ffffff; --surface:#f5f5f2; --text:#1f1f1d; --text2:#5f5e5a; --muted:#8a8880;
+  --border:#d3d1c7; --border-strong:#9c9a92;
+  --accent-bg:#e6f1fb; --accent-border:#185fa5; --accent-text:#0c447c;
+  --ok-bg:#eaf3de; --ok-border:#3b6d11; --ok-text:#27500a;
+  --bad-bg:#fceBeb; --bad-border:#a32d2d; --bad-text:#791f1f;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1c1c1a; --surface:#2a2a27; --text:#f1efe8; --text2:#b4b2a9; --muted:#888780;
+    --border:#444441; --border-strong:#73726c;
+    --accent-bg:#0c447c; --accent-border:#85b7eb; --accent-text:#cfe3f7;
+    --ok-bg:#27500a; --ok-border:#97c459; --ok-text:#c0dd97;
+    --bad-bg:#791f1f; --bad-border:#f09595; --bad-text:#f7c1c1;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6}
+main{max-width:820px;margin:0 auto;padding:24px 20px 48px}
+h1{font-size:24px;font-weight:500;margin:0 0 4px}
+.sub{color:var(--text2);margin:0 0 20px;font-size:15px}
+button{font:inherit;font-size:15px;color:var(--text);background:transparent;border:1px solid var(--border-strong);border-radius:8px;padding:7px 14px;cursor:pointer}
+button:hover{background:var(--surface)}
+button:active{transform:scale(.98)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
+input[type=text]{font-family:var(--mono);font-size:16px;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:8px 12px;flex:1;min-width:0}
+.pre{font-family:var(--mono);font-size:15px;padding:5px 12px}
+.pre.sel{border-color:var(--accent-border);background:var(--accent-bg);color:var(--accent-text)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.label{font-size:14px;color:var(--text2)}
+#err{font-size:14px;color:var(--bad-text);min-height:20px;margin:6px 0 8px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:28px;align-items:start;margin-top:8px}
+@media (max-width:560px){.layout{grid-template-columns:1fr}}
+#strip{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:24px;margin-top:8px}
+.ch{width:44px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border-strong);font-family:var(--mono);font-size:24px;font-weight:600;background:var(--bg);position:relative;transition:background .15s,opacity .15s}
+.ch.done{opacity:.45}
+.ch.cur{border:3px solid var(--accent-border);background:var(--accent-bg);color:var(--accent-text);opacity:1}
+.ch.match{background:var(--ok-bg);border-color:var(--ok-border);color:var(--ok-text);opacity:1}
+.ch.bad{background:var(--bad-bg);border:3px solid var(--bad-border);color:var(--bad-text);opacity:1}
+.ix{position:absolute;bottom:-19px;font-size:12px;color:var(--muted);font-family:var(--sans);font-weight:400}
+#stackbox{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:200px;width:100%;padding:8px 0;border:2px solid var(--border-strong);border-top:none;border-radius:0 0 10px 10px}
+.item{width:84px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--accent-border);font-family:var(--mono);font-size:20px;font-weight:600;background:var(--accent-bg);color:var(--accent-text)}
+.item.top{border-width:3px}
+.item.pop{background:var(--ok-bg);border-color:var(--ok-border);color:var(--ok-text);opacity:.65}
+.item.badpop{background:var(--bad-bg);border-color:var(--bad-border);color:var(--bad-text)}
+.toplabel{font-size:12px;color:var(--muted);height:16px;text-align:center}
+#msg{min-height:84px;padding:14px 16px;border-radius:10px;background:var(--surface);font-size:17px;line-height:1.6;margin-top:6px}
+#msg code{font-family:var(--mono);font-weight:600}
+#msg.ok{background:var(--ok-bg);color:var(--ok-text)}
+#msg.bad{background:var(--bad-bg);color:var(--bad-text)}
+#msg.hidden-msg{color:var(--muted);background:var(--surface)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+#count{font-size:14px;color:var(--muted);margin-left:auto}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text2);margin-top:16px;cursor:pointer;user-select:none}
+.toggle input{width:18px;height:18px;margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:20px;font-size:14px;color:var(--text2)}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid}
+</style>
+</head>
+<body>
+<main>
+  <h1>Balanced brackets with a stack</h1>
+  <p class="sub">Step through <code>is_balanced(s)</code> one character at a time.</p>
+
+  <div class="row" role="group" aria-label="Example strings">
+    <span class="label">Try:</span>
+    <button class="pre" data-s="([])[]()">([])[]()</button>
+    <button class="pre" data-s="((([([])]))())">((([([])]))())</button>
+    <button class="pre" data-s="([]]()">([]]()</button>
+    <button class="pre" data-s="][">][</button>
+    <button class="pre" data-s="(([]">(([]</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <input type="text" id="inp" maxlength="14" placeholder="Type your own, e.g. ([)]" aria-label="Custom bracket string">
+    <button id="go">Load</button>
+  </div>
+  <div id="err" role="alert"></div>
+
+  <div class="layout">
+    <div>
+      <div class="label">Input string</div>
+      <div id="strip" aria-live="polite"></div>
+      <div class="label">What just happened</div>
+      <div id="msg" aria-live="polite"></div>
+      <div class="controls">
+        <button id="prev">&larr; Back</button>
+        <button id="next">Next &rarr;</button>
+        <button id="play">Auto-play</button>
+        <button id="reset">Reset</button>
+        <span id="count"></span>
+      </div>
+      <label class="toggle"><input type="checkbox" id="hide"> Hide explanations (so students predict the next step)</label>
+    </div>
+    <div>
+      <div class="label" style="text-align:center;margin-bottom:6px">Stack</div>
+      <div class="toplabel">top</div>
+      <div id="stackbox"></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--accent-bg);border-color:var(--accent-border)"></span>Current character / on the stack</span>
+    <span><span class="sw" style="background:var(--ok-bg);border-color:var(--ok-border)"></span>Matched pair</span>
+    <span><span class="sw" style="background:var(--bad-bg);border-color:var(--bad-border)"></span>Failure</span>
+  </div>
+</main>
+
+<script>
+(function(){
+  var PAIRS={')':'(',']':'['};
+  var s='',steps=[],k=0,timer=null;
+  var $=function(id){return document.getElementById(id)};
+
+  function build(str){
+    var out=[],st=[],matched=[];
+    out.push({i:-1,st:[],matched:[],msg:'Start with an empty stack. We read the string left to right, one character at a time.',kind:'info'});
+    for(var i=0;i<str.length;i++){
+      var c=str[i];
+      if(c==='('||c==='['){
+        st=st.concat([i]);
+        out.push({i:i,st:st.slice(),matched:matched.slice(),msg:'<code>'+c+'</code> is an opening bracket, so we <b>push</b> it. It now waits for its partner.',kind:'info'});
+      } else {
+        var need=PAIRS[c];
+        if(st.length===0){
+          out.push({i:i,st:[],matched:matched.slice(),msg:'<code>'+c+'</code> is a closing bracket but the stack is empty. Nothing is waiting for it.',kind:'bad',fail:true,result:false});
+          return out;
+        }
+        var top=st[st.length-1], before=st.slice();
+        if(str[top]===need){
+          st=st.slice(0,-1);
+          matched=matched.concat([top,i]);
+          out.push({i:i,st:st.slice(),before:before,matched:matched.slice(),msg:'<code>'+c+'</code> needs <code>'+need+'</code> on top. The top is <code>'+str[top]+'</code>, so it matches. <b>Pop</b> it.',kind:'ok',popKind:'pop'});
+        } else {
+          out.push({i:i,st:st.slice(),before:before,matched:matched.slice(),msg:'<code>'+c+'</code> needs <code>'+need+'</code> on top, but the top is <code>'+str[top]+'</code>. The most recent opener has to close first, so this is not balanced.',kind:'bad',fail:true,result:false,popKind:'badpop'});
+          return out;
+        }
+      }
+    }
+    if(st.length===0){
+      out.push({i:str.length,st:[],matched:matched.slice(),msg:'End of string and the stack is empty. Every opener found its partner: balanced.',kind:'ok',result:true});
+    } else {
+      out.push({i:str.length,st:st.slice(),matched:matched.slice(),msg:'End of string, but the stack still holds '+st.length+' opener'+(st.length>1?'s':'')+' that never closed: not balanced.',kind:'bad',result:false});
+    }
+    return out;
+  }
+
+  function render(){
+    var S=steps[k], h='', j;
+    for(j=0;j<s.length;j++){
+      var cls='ch';
+      if(S.matched.indexOf(j)>-1) cls+=' match';
+      else if(S.i===j) cls+=(S.fail?' bad':' cur');
+      else if(S.i>j) cls+=' done';
+      h+='<div class="'+cls+'">'+s[j]+'<span class="ix">'+j+'</span></div>';
+    }
+    $('strip').innerHTML=h;
+
+    var items='';
+    if(S.before){
+      items+='<div class="item '+S.popKind+'">'+s[S.before[S.before.length-1]]+'</div>';
+      for(var a=S.before.length-2;a>=0;a--) items+='<div class="item">'+s[S.before[a]]+'</div>';
+    } else {
+      for(var b=S.st.length-1;b>=0;b--) items+='<div class="item'+(b===S.st.length-1?' top':'')+'">'+s[S.st[b]]+'</div>';
+    }
+    $('stackbox').innerHTML=items;
+
+    var m=$('msg'), hide=$('hide').checked;
+    var final=(S.result!==undefined);
+    m.className=hide&&!final?'hidden-msg':(S.kind==='ok'?'ok':S.kind==='bad'?'bad':'');
+    if(hide&&!final){
+      m.innerHTML='Explanation hidden. Predict the next stack, then press Next.';
+    } else {
+      m.innerHTML=S.msg+(final?'<div style="margin-top:6px;font-weight:600">Result: '+(S.result?'true':'false')+'</div>':'');
+    }
+    $('count').textContent='Step '+k+' of '+(steps.length-1);
+    $('prev').style.opacity=k===0?.45:1;
+    $('next').style.opacity=k===steps.length-1?.45:1;
+  }
+
+  function stop(){
+    if(timer){clearInterval(timer);timer=null}
+    $('play').textContent='Auto-play';
+  }
+  function next(){ if(k<steps.length-1){k++;render()} else stop(); }
+  function load(str){
+    stop(); s=str; steps=build(s); k=0;
+    var btns=document.querySelectorAll('.pre');
+    for(var i=0;i<btns.length;i++) btns[i].classList.toggle('sel',btns[i].getAttribute('data-s')===s);
+    render();
+  }
+  function loadCustom(){
+    var v=$('inp').value.replace(/\s/g,'');
+    if(!v){$('err').textContent='Enter a string of ( ) [ ] first';return}
+    if(/[^()\[\]]/.test(v)){$('err').textContent='Use only the characters ( ) [ ]';return}
+    $('err').textContent=''; load(v);
+  }
+
+  $('next').onclick=function(){stop();next()};
+  $('prev').onclick=function(){stop();if(k>0){k--;render()}};
+  $('reset').onclick=function(){stop();k=0;render()};
+  $('play').onclick=function(){
+    if(timer){stop();return}
+    if(k===steps.length-1){k=0;render()}
+    $('play').textContent='Pause';
+    timer=setInterval(next,1200);
+  };
+  $('hide').onchange=render;
+  $('go').onclick=loadCustom;
+  $('inp').oninput=function(){$('err').textContent=''};
+  $('inp').onkeydown=function(e){if(e.key==='Enter')loadCustom()};
+  var pres=document.querySelectorAll('.pre');
+  for(var p=0;p<pres.length;p++) pres[p].onclick=function(){$('err').textContent='';$('inp').value='';load(this.getAttribute('data-s'))};
+  document.addEventListener('keydown',function(e){
+    if(e.target.tagName==='INPUT'&&e.target.type==='text') return;
+    if(e.key==='ArrowRight'){stop();next()}
+    if(e.key==='ArrowLeft'){stop();if(k>0){k--;render()}}
+  });
+  load('((([([])]))())');
+})();
+</script>
+</body>
+</html>
